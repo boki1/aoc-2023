@@ -31,9 +31,9 @@ class engine_map {
 			}
 
 			if (!std::isalnum(iss.peek())) {
-				line_symbols.push_back(lineoff);
+				if (char c = iss.get(); c == '*')
+					line_symbols.push_back(lineoff);
 				++lineoff;
-				iss.get();
 				continue;
 			}
 
@@ -60,8 +60,34 @@ public:
 		assert(m_symbols.size() == m_parts.size());
 	}
 
+	std::int64_t sum_gear_ratios() {
+		std::uint64_t sum{0};
+
+		auto nearby_parts = [&](std::uint64_t star_index, std::uint64_t linenum) {
+			std::vector<std::uint64_t> partnumbers;
+			for (int i = -1; i <= 1; ++i) {
+				if (linenum + i < 0) continue;
+				if (linenum + i >= m_symbols.size()) break;
+				for (const auto &part : m_parts[linenum + i])
+					if (part.lineoff <= star_index + 1
+					 && star_index <= part.lineoff + part.number_length)
+						partnumbers.push_back(part.number);
+			}
+			return partnumbers;
+		};
+
+		for (std::uint64_t linenum = 0; linenum < m_symbols.size(); ++linenum)
+			for (const auto &star_index : m_symbols[linenum]) {
+				auto nearby_numbers = nearby_parts(star_index, linenum);
+				if (nearby_numbers.size() == 2)
+					sum += nearby_numbers[0] * nearby_numbers[1];
+			}
+
+		return sum;
+	}
+
 	std::int64_t sum_parts() {
-		std::int64_t sum{0};
+		std::uint64_t sum{0};
 
 		auto check_part_on_line = [&](const part &part, std::uint64_t linenum) -> bool {
 			const auto &syms = m_symbols[linenum];
@@ -98,6 +124,7 @@ int main(int argc, const char* argv[])
 {
 	assert(argc == 2 && "No input file provided!");
 	engine_map em { argv[1] };
-	std::cout << em.sum_parts() << '\n';
+	// std::cout << em.sum_parts() << '\n';
+	std::cout << em.sum_gear_ratios() << '\n';
 	return 0;
 }
