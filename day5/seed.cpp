@@ -5,9 +5,11 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <mutex>
 #include <ranges>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 static constexpr auto g_max_istream = std::numeric_limits<std::streamsize>::max();
@@ -18,16 +20,21 @@ struct entry {
 	std::uint64_t length;
 };
 
-std::vector<std::uint64_t> read_seeds(std::ifstream& ifs)
+struct seed_range {
+	std::uint64_t start;
+	std::uint64_t length;
+};
+
+std::vector<seed_range> read_seed_ranges(std::ifstream& ifs)
 {
-	std::vector<std::uint64_t> seeds;
-	std::string line;
-	std::getline(ifs, line);
-	std::istringstream iss { line };
-	iss.ignore(g_max_istream, ':');
-	std::istream_iterator<std::uint64_t> iss_int_it { iss };
-	std::copy(iss_int_it, decltype(iss_int_it) {}, std::back_inserter(seeds));
-	return seeds;
+	std::vector<seed_range> seed_ranges;
+	ifs.ignore(g_max_istream, ':');
+	for (seed_range sr; ifs.peek() != '\n';) {
+		ifs >> sr.start >> sr.length;
+		seed_ranges.push_back(sr);
+	}
+	ifs.ignore(g_max_istream, '\n');
+	return seed_ranges;
 }
 
 std::vector<std::vector<entry>> read_maps(std::ifstream& ifs)
@@ -82,14 +89,27 @@ int main(int argc, const char* argv[])
 {
 	assert(argc == 2 && "No input file provided!");
 	std::ifstream ifs { argv[1], std::ios::in };
-	const auto seeds = read_seeds(ifs);
+	const auto seed_ranges = read_seed_ranges(ifs);
 	const auto maps = read_maps(ifs);
 
 	std::vector<std::uint64_t> locations;
-	std::transform(std::cbegin(seeds), std::cend(seeds), std::back_inserter(locations), [&](const std::uint64_t seed) {
-		return location_of_seed(seed, maps);
-	});
-	// assert(!locations.empty());
+	std::vector<std::thread> ts;
+	std::mutex locations_lock;
+	for (const auto& sr : seed_ranges) {
+		ts.emplace_back([&](const seed_range& sr) {
+			std::uint64_t min_loc = -1;
+			for (std::uint64_t seed = sr.start, end = sr.start + sr.length; seed < end; ++seed)
+				if (const auto loc = location_of_seed(seed, maps); loc < min_loc)
+					min_loc = loc;
+			std::unique_lock<std::mutex> _ { locations_lock };
+			locations.push_back(min_loc);
+		},
+			sr);
+	}
+
+	for (auto& t : ts)
+		t.join();
+
 	std::cout << *std::min_element(std::cbegin(locations), std::cend(locations)) << '\n';
 	return 0;
 }
