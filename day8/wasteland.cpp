@@ -1,15 +1,20 @@
+#include <algorithm>
 #include <cassert>
-#include <fstream>
+#include <numeric>
 #include <cstdint>
-#include <limits>
+#include <fstream>
 #include <iostream>
+#include <limits>
+#include <ranges>
 #include <unordered_map>
 #include <vector>
 
 struct navigation_map {
-	enum class step : std::uint8_t { Left, Right };
+	enum class step : std::uint8_t { Left,
+		Right };
 
-	friend std::istream &operator>>(std::istream &is, navigation_map &nmap) {
+	friend std::istream& operator>>(std::istream& is, navigation_map& nmap)
+	{
 		std::string line;
 		std::getline(is, line);
 		nmap.steps.reserve(line.size());
@@ -20,8 +25,10 @@ struct navigation_map {
 
 		static constexpr auto max_istream = std::numeric_limits<std::streamsize>::max();
 		is.ignore(max_istream, '\n');
-		for (std::string key, leftturn, rightturn; !is.eof() && is.peek() != -1; ) {
+		for (std::string key, leftturn, rightturn; !is.eof() && is.peek() != -1;) {
 			is >> key;
+			if (key.back() == 'A')
+				nmap.srcs.push_back(key);
 			is.ignore(max_istream, '(');
 			is >> leftturn;
 			assert(leftturn.back() == ',');
@@ -29,31 +36,46 @@ struct navigation_map {
 			is >> rightturn;
 			assert(rightturn.back() == ')');
 			rightturn.pop_back();
-			nmap.turnpoints[key] = std::make_pair(leftturn, rightturn);
+			nmap.turnpoints[std::move(key)] = std::make_pair(std::move(leftturn), std::move(rightturn));
 			is.ignore(max_istream, '\n');
 		}
 
 		return is;
 	}
 
-	std::uint64_t follow_steps() {
-		const std::string *curr{&src};
-		for (std::uint64_t total = 0;;) {
-			for (const step s : steps) {
-				if (*curr == dest)
-					return total;
-				assert(turnpoints.find(*curr) != turnpoints.cend());
-				const auto &turns = turnpoints[*curr];
-				curr = s == step::Left ? &turns.first : &turns.second;
-				++total;
+	const std::string* follow_step_from(const std::string& src, const step st)
+	{
+		assert(turnpoints.find(src) != turnpoints.cend());
+		const auto& turns = turnpoints[src];
+		return st == step::Left ? &turns.first : &turns.second;
+	}
+
+	std::uint64_t follow_steps()
+	{
+		std::uint64_t lcm_count{1};
+
+		std::vector<const std::string*> dests;
+		dests.reserve(srcs.size());
+		std::transform(std::cbegin(srcs), std::cend(srcs), std::back_inserter(dests), [](const std::string& s) { return &s; });
+
+		for (std::uint64_t step_index { 0 }, count{0}; !dests.empty(); ++step_index, ++count) {
+			if (step_index >= steps.size())
+				step_index = 0;
+			for (auto it = dests.begin(); it != dests.end(); ) {
+				*it = follow_step_from(**it, steps[step_index]);
+				if ((*it)->back() == 'Z') {
+					lcm_count = std::lcm(lcm_count, count + 1);
+					dests.erase(it);
+				} else ++it;
 			}
 		}
+
+		return lcm_count;
 	}
 
 	std::vector<step> steps;
 	std::unordered_map<std::string, std::pair<std::string, std::string>> turnpoints;
-	const std::string dest{"ZZZ"};
-	const std::string src{"AAA"};
+	std::vector<std::string> srcs;
 };
 
 int main(int argc, const char* argv[])
