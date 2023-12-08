@@ -14,6 +14,7 @@ test: all
 	gdb -tui -ex start --args ./$(OUT) $(INPUT)
 
 submit: all
+	$(CXXC) -O3 -std=c++23 $< -o $(OUT)
 	./$(OUT) input
 
 .PHONY: all clean test test submit

@@ -25,37 +25,42 @@ struct competition {
 	}
 };
 
-std::vector<competition> parse(std::ifstream& ifs)
+competition parse(std::ifstream& ifs)
 {
 	static constexpr auto max_istream = std::numeric_limits<std::streamsize>::max();
-	auto read_number_line = [](std::ifstream &ifs) {
+	auto read_number_skipws = [](std::ifstream &ifs) {
 		std::string line;
 		if (!std::getline(ifs, line))
 			throw std::invalid_argument{"bad line"};
 		std::istringstream iss{line};
 		iss.ignore(max_istream, ':');
-		std::vector<std::uint64_t> vec;
-		std::istream_iterator<std::uint64_t> it { iss };
-		std::copy(it, decltype(it){}, std::back_inserter(vec));
-		return vec;
+		std::uint64_t number{0};
+		while (!iss.eof() && iss.peek() > 0) {
+			if (std::isspace(iss.peek())) {
+				iss.get();
+				continue;
+			}
+
+			std::uint64_t digit = iss.get() - '0';
+			number = number * 10 + digit;
+		}
+
+		return number;
 	};
 
-	const auto durations = read_number_line(ifs);
-	const auto records = read_number_line(ifs);
-	std::vector<competition> competitions;
-	competitions.reserve(durations.size());
-	for (const auto [d, r] : std::views::zip(durations, records))
-		competitions.emplace_back(d, r);
-	return competitions;
+	const auto duration = read_number_skipws(ifs);
+	const auto record = read_number_skipws(ifs);
+	return competition {
+		.duration = duration,
+		.record = record
+	};
 }
 
 int main(int argc, const char* argv[])
 {
 	assert(argc == 2 && "No input file provided!");
 	std::ifstream ifs { argv[1], std::ios::in };
-	const auto competitions = parse(ifs);
-	std::cout << std::accumulate(std::cbegin(competitions), std::cend(competitions), 1, [&](std::uint64_t acc, const competition& comp) {
-		return acc * comp.count_winning_strategies();
-	}) << '\n';
+	const auto competition = parse(ifs);
+	std::cout << competition.count_winning_strategies() << '\n';
 	return 0;
 }
