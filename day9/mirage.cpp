@@ -29,6 +29,12 @@ std::uint64_t extrapolate_next_value(std::vector<std::uint64_t>& progress)
 	assert(!"unreachable");
 }
 
+std::uint64_t extrapolate_next_value_backwards(std::vector<std::uint64_t>& progress)
+{
+	std::reverse(std::begin(progress), std::end(progress));
+	return extrapolate_next_value(progress);
+}
+
 int main(int argc, const char* argv[])
 {
 	assert(argc == 2 && "No input file provided!");
@@ -36,7 +42,7 @@ int main(int argc, const char* argv[])
 	std::uint64_t total{0};
 	for (std::string line; std::getline(ifs, line); ) {
 		auto value_progress = parse_line(line);
-		total += extrapolate_next_value(value_progress);
+		total += extrapolate_next_value_backwards(value_progress);
 	}
 	std::cout << total << '\n';
 	return 0;
