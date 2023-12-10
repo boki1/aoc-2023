@@ -19,8 +19,8 @@ T takeone(std::queue<T>& q)
 }
 
 struct maze {
-	static constexpr auto ROWS = 5;
-	static constexpr auto COLS = 5;
+	static constexpr auto ROWS = 140;
+	static constexpr auto COLS = 140;
 
 	struct coordinate {
 		char curr;
@@ -53,40 +53,20 @@ struct maze {
 				return std::make_optional(coordinate { sym_at(row, c), row, c, depth + std::labs((c - col)) });
 			};
 
-			switch (curr) {
-			case 'L':										  // North-East
-				children_.emplace_back(*find_vertical(-1));	  // North
-				children_.emplace_back(*find_horizontal(+1)); // East
-				break;
-			case 'J':										  // North-West
-				children_.emplace_back(*find_vertical(-1));	  // North
-				children_.emplace_back(*find_horizontal(-1)); // West
-				break;
-			case '7':										  // South-West
-				children_.emplace_back(*find_vertical(+1));	  // South
-				children_.emplace_back(*find_horizontal(-1)); // West
-				break;
-			case 'F':										  // South-East
-				children_.emplace_back(*find_vertical(+1));	  // South
-				children_.emplace_back(*find_horizontal(+1)); // East
-				break;
-			case 'S':
-				if (auto v = find_vertical(+1); v)
-					children_.push_back(*v);
+			if (curr == 'L' || curr == 'J' || curr == 'S')
 				if (auto v = find_vertical(-1); v)
 					children_.push_back(*v);
-				if (auto h = find_horizontal(+1); h)
-					children_.push_back(*h);
-				if (auto h = find_horizontal(-1); h)
-					children_.push_back(*h);
-				break;
-			case '.': // nothing
-			default:
-				__builtin_unreachable();
-			}
+			if (curr == '7' || curr == 'F' || curr == 'S')
+				if (auto v = find_vertical(+1); v)
+					children_.push_back(*v);
+			if (curr == 'J' || curr == '7' || curr == 'S')
+				if (auto v = find_horizontal(-1); v)
+					children_.push_back(*v);
+			if (curr == 'L' || curr == 'F' || curr == 'S')
+				if (auto v = find_horizontal(+1); v)
+					children_.push_back(*v);
 
-			assert(children_.size() == 2);
-			if (children_[0].depth > children_[1].depth)
+			if (children_.size() == 2 && children_[0].depth > children_[1].depth)
 				std::swap(children_[0], children_[1]);
 			return children_;
 		}
@@ -112,12 +92,12 @@ struct maze {
 
 	std::uint64_t longest_path()
 	{
-		std::vector<char> visited(ROWS * COLS, '.');
+		std::vector<bool> visited(ROWS * COLS, false);
 		auto mark_visited = [&](const coordinate& c) {
-			visited[c.row * COLS + c.col] = c.curr;
+			visited[c.row * COLS + c.col] = true;
 		};
 		auto is_visited = [&](const coordinate& c) {
-			return visited[c.row * COLS + c.col] != '.';
+			return visited[c.row * COLS + c.col];
 		};
 		auto show_visited = [&]() {
 			for (std::uint64_t j = 0; j < ROWS; ++j) {
@@ -130,20 +110,19 @@ struct maze {
 
 		std::queue<coordinate> wset;
 		wset.push(start);
-		mark_visited(start);
 
 		std::uint64_t max_depth { 0 };
-		while (!wset.empty()) {
-			auto curr = takeone(wset);
-			show_visited();
+		for (coordinate curr; !wset.empty(); ) {
+			curr = takeone(wset);
+			if (is_visited(curr))
+				continue;
+			mark_visited(curr);
+			// show_visited();
 			max_depth = std::max(curr.depth, max_depth);
 			const auto& children = curr.children(*this);
-			for (const auto& c : children) {
-				if (is_visited(c))
-					continue;
-				wset.push(c);
-				mark_visited(c);
-			}
+			for (const auto& c : children)
+				if (!is_visited(c))
+					wset.push(c);
 		}
 		return max_depth;
 	}
